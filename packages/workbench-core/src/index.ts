@@ -8,10 +8,15 @@ export { mountDesktopWorkbench } from './renderer/workbench';
 export function createEasyViewWorkbench(options: {
   host: WorkbenchHost;
   showAiChatOnWelcome?: boolean;
+  /** Office embeds follow the host/system palette instead of a stale local preference. */
+  followSystemTheme?: boolean;
   flush(): Promise<void>;
   requestClose(): Promise<boolean>;
 }) {
-  const shell = mountDesktopWorkbench(options.host, { showAiChatOnWelcome: options.showAiChatOnWelcome });
+  const shell = mountDesktopWorkbench(options.host, {
+    showAiChatOnWelcome: options.showAiChatOnWelcome,
+    followSystemTheme: options.followSystemTheme,
+  });
   return {
     ...shell,
     async openDocument(relativePath: string) {

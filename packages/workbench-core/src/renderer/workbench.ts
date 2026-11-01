@@ -45,7 +45,10 @@ declare const window: WindowWithDesktopApi;
 const mountedDocuments = new WeakSet<Document>();
 
 /** Mount the original shell explicitly; each frame owns one complete workbench lifetime. */
-export function mountDesktopWorkbench(api: EasyViewDesktopApi, options: { showAiChatOnWelcome?: boolean } = {}) {
+export function mountDesktopWorkbench(api: EasyViewDesktopApi, options: {
+  showAiChatOnWelcome?: boolean;
+  followSystemTheme?: boolean;
+} = {}) {
 if (mountedDocuments.has(document)) throw new Error('A workbench is already mounted in this document');
 mountedDocuments.add(document);
 const lifetime = new AbortController();
@@ -70,7 +73,8 @@ const productAppearance = new EditorAppearanceStore(
 applyDesktopProductAppearance(productAppearance.state, document);
 
 function applyOsTheme(theme: DesktopThemeMode): void {
-  productAppearance.setMode(readLocalProductTheme(window.localStorage, theme === 'dark' ? 'dark' : 'light'), false);
+  const systemTheme = theme === 'dark' ? 'dark' : 'light';
+  productAppearance.setMode(options.followSystemTheme ? systemTheme : readLocalProductTheme(window.localStorage, systemTheme), false);
 }
 
 window.systemLocale = navigator.language || 'en-US';

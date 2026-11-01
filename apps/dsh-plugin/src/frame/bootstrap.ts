@@ -3,9 +3,22 @@ import { createFolderBridge } from './folder-bridge';
 import { installDshAppMenu } from './app-menu';
 
 const params = new URLSearchParams(location.search);
-if (params.get('hostTheme') === 'office') document.documentElement.dataset.hostTheme = 'office';
+const isOfficeHost = params.get('hostTheme') === 'office';
+if (isOfficeHost) {
+  document.documentElement.dataset.hostTheme = 'office';
+  // Paint the host chrome before the workbench bundle mounts, avoiding a light
+  // flash while the typed desktop API resolves its initial system theme.
+  document.documentElement.dataset.hostColorScheme =
+    window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
 const lifecycle = new AbortController();
 const api = await createDshDesktopApi({ openFolder: createFolderBridge(params, lifecycle.signal) });
+const hostThemeSubscription = isOfficeHost ? api.app.onThemeChanged(theme => {
+  document.documentElement.dataset.hostColorScheme = theme;
+}) : { unsubscribe() {} };
+if (isOfficeHost) void api.app.getTheme().then(result => {
+  if (result.ok) document.documentElement.dataset.hostColorScheme = result.value;
+});
 Object.assign(window, { easyViewDesktop: api });
 // Install before the original shell captures popupAppMenu for its button/Alt handler.
 installDshAppMenu(api, {
@@ -15,10 +28,14 @@ installDshAppMenu(api, {
 }, lifecycle.signal);
 // Evaluate the original renderer only after the typed Host and locale exist.
 const { createEasyViewWorkbench } = await import('@easyview/workbench-core');
-const workbench = createEasyViewWorkbench({ host: api, showAiChatOnWelcome: true, flush: api.workbench.flush, requestClose: api.workbench.requestClose });
+// Keep the Office-only option additive so older shared workbench declarations
+// remain consumable while the bundled renderer receives the system-following flag.
+const workbenchOptions = { host: api, showAiChatOnWelcome: true, followSystemTheme: isOfficeHost,
+  flush: api.workbench.flush, requestClose: api.workbench.requestClose };
+const workbench = createEasyViewWorkbench(workbenchOptions);
 await workbench.ready;
 const channel = params.get('channel'), workbenchId = params.get('workbenchId');
-const dispose = () => { workbench.dispose(); api.workbench.dispose(); lifecycle.abort(); };
+const dispose = () => { workbench.dispose(); api.workbench.dispose(); hostThemeSubscription.unsubscribe(); lifecycle.abort(); };
 if (window.parent !== window && channel && /^[a-f0-9-]{36}$/.test(channel) && workbenchId) {
   const send = (value: object) => window.parent.postMessage({ protocol: 'easyview.workbench.v1', channel, workbenchId, ...value }, location.origin);
   window.addEventListener('message', event => {

@@ -36,10 +36,11 @@ dialog.easyview-workspace-picker::backdrop { background: #17203966; }
 
 /* Office host palette: phase-one.css / portal.css. Opt-in only, no layout changes.
  * EasyView writes appearance variables inline on body and each editor session;
- * important is required at these roots to keep host chrome consistent.
+ * important is required at these roots to keep host chrome consistent in both
+ * system palettes.
  * Document accent, explicit content formatting and review status colors stay intact. */
-:root[data-host-theme='office'],
-:root[data-host-theme='office'] :is(body, .desktop-editor-session) {
+:root[data-host-theme='office']:not([data-host-color-scheme='dark']),
+:root[data-host-theme='office']:not([data-host-color-scheme='dark']) :is(body, .desktop-editor-session) {
   color-scheme: light !important;
   --easyview-editor-background: #fff;
   --easyview-editor-foreground: #172039;
@@ -92,6 +93,63 @@ dialog.easyview-workspace-picker::backdrop { background: #17203966; }
   --vscode-scrollbarSlider-activeBackground: rgba(36, 107, 255, .45) !important;
 }
 
+/* The Office shell follows the operating-system palette.  Keep this separate
+ * from data-easyview-theme: the latter is still a user/file appearance
+ * preference and must not repaint the Office chrome when the host is light. */
+:root[data-host-theme='office'][data-host-color-scheme='dark'],
+:root[data-host-theme='office'][data-host-color-scheme='dark'] :is(body, .desktop-editor-session) {
+  color-scheme: dark !important;
+  --easyview-editor-background: #111a28;
+  --easyview-editor-foreground: #e8eef7;
+  --easyview-panel-background: #182538;
+  --easyview-panel-foreground: #e8eef7;
+  --easyview-input-background: #141f30;
+  --easyview-button-background: #4d8dff;
+  --easyview-button-foreground: #fff;
+  --easyview-border: #304158;
+  --easyview-focus-border: #75a8ff;
+  --easyview-hover-background: #223b60;
+  --easyview-selection-background: rgba(117, 168, 255, .28);
+  --easyview-list-selection-background: #294a78;
+  --vscode-editor-background: #111a28 !important;
+  --vscode-editor-foreground: #e8eef7 !important;
+  --vscode-foreground: #e8eef7 !important;
+  --vscode-icon-foreground: #aabbd2 !important;
+  --vscode-descriptionForeground: #9eacc0 !important;
+  --vscode-editorWidget-background: #182538 !important;
+  --vscode-editorWidget-foreground: #e8eef7 !important;
+  --vscode-editorWidget-border: #304158 !important;
+  --vscode-panel-border: #304158 !important;
+  --vscode-input-background: #141f30 !important;
+  --vscode-input-foreground: #e8eef7 !important;
+  --vscode-input-border: #304158 !important;
+  --vscode-input-placeholderForeground: #8293aa !important;
+  --vscode-dropdown-background: #182538 !important;
+  --vscode-dropdown-foreground: #e8eef7 !important;
+  --vscode-dropdown-border: #304158 !important;
+  --vscode-menu-background: #182538 !important;
+  --vscode-menu-foreground: #e8eef7 !important;
+  --vscode-menu-border: #304158 !important;
+  --vscode-menu-selectionBackground: #294a78 !important;
+  --vscode-menu-selectionForeground: #fff !important;
+  --vscode-button-background: #4d8dff !important;
+  --vscode-button-foreground: #fff !important;
+  --vscode-focusBorder: #75a8ff !important;
+  --vscode-textLink-foreground: #75a8ff !important;
+  --vscode-toolbar-hoverBackground: #223b60 !important;
+  --vscode-list-hoverBackground: #223b60 !important;
+  --vscode-list-activeSelectionBackground: #294a78 !important;
+  --vscode-list-activeSelectionForeground: #fff !important;
+  --vscode-list-inactiveSelectionBackground: #20344f !important;
+  --vscode-editor-selectionBackground: rgba(117, 168, 255, .28) !important;
+  --vscode-textCodeBlock-background: #182538 !important;
+  --vscode-textBlockQuote-background: #182538 !important;
+  --vscode-textBlockQuote-border: #304158 !important;
+  --vscode-scrollbarSlider-background: rgba(158, 172, 192, .32) !important;
+  --vscode-scrollbarSlider-hoverBackground: rgba(170, 187, 210, .48) !important;
+  --vscode-scrollbarSlider-activeBackground: rgba(117, 168, 255, .58) !important;
+}
+
 /* Scope the UI accent so the document's chosen accent continues to work. */
 :root[data-host-theme='office'] :is(#desktop-welcome, #desktop-title-left, #desktop-title-actions,
   #workspace-explorer, #version-guard-host, #desktop-ai-chat-host, .desktop-tab-bar, .file-header-bar) {
@@ -99,11 +157,11 @@ dialog.easyview-workspace-picker::backdrop { background: #17203966; }
   --mdpre-accent-soft: rgba(36, 107, 255, .12);
   --mdpre-accent-text: #246bff;
 }
-:root[data-host-theme='office'] :is(.workspace-header, .ai-chat-header) {
+:root[data-host-theme='office']:not([data-host-color-scheme='dark']) :is(.workspace-header, .ai-chat-header) {
   color: #173b68;
   background: #edf3fc;
 }
-:root[data-host-theme='office'] :is(.file-header-bar, .file-viewer-web-toolbar,
+:root[data-host-theme='office']:not([data-host-color-scheme='dark']) :is(.file-header-bar, .file-viewer-web-toolbar,
   .x-spreadsheet-toolbar, [data-testid='formatting-bar'], .preview-archive-toolbar, .preview-basic-toolbar) {
   --document-toolbar-background: #fff !important;
   --document-toolbar-foreground: #476487 !important;
@@ -112,9 +170,29 @@ dialog.easyview-workspace-picker::backdrop { background: #17203966; }
   color: #476487;
   border-bottom-color: #eaf0f8 !important;
 }
-:root[data-host-theme='office'] .desktop-tab.active { color: #246bff; }
-:root[data-host-theme='office'] .desktop-welcome-action { background: #fff; }
-:root[data-host-theme='office'] #desktop-ai-chat-host .ai-chat-send-btn:not(.stop) {
+:root[data-host-theme='office']:not([data-host-color-scheme='dark']) .desktop-tab.active { color: #246bff; }
+:root[data-host-theme='office']:not([data-host-color-scheme='dark']) .desktop-welcome-action { background: #fff; }
+:root[data-host-theme='office']:not([data-host-color-scheme='dark']) #desktop-ai-chat-host .ai-chat-send-btn:not(.stop) {
   background: linear-gradient(105deg, #1d6cff, #347aff);
 }
-:root[data-host-theme='office'] #desktop-ai-chat-host :is(.ai-chat-model-btn, .ai-chat-mode-current) { color: #476487; }
+:root[data-host-theme='office']:not([data-host-color-scheme='dark']) #desktop-ai-chat-host :is(.ai-chat-model-btn, .ai-chat-mode-current) { color: #476487; }
+
+:root[data-host-theme='office'][data-host-color-scheme='dark'] :is(.workspace-header, .ai-chat-header) {
+  color: #e8eef7;
+  background: #182538;
+}
+:root[data-host-theme='office'][data-host-color-scheme='dark'] :is(.file-header-bar, .file-viewer-web-toolbar,
+  .x-spreadsheet-toolbar, [data-testid='formatting-bar'], .preview-archive-toolbar, .preview-basic-toolbar) {
+  --document-toolbar-background: #182538 !important;
+  --document-toolbar-foreground: #aabbd2 !important;
+  --document-toolbar-border: #304158 !important;
+  background: #182538 !important;
+  color: #aabbd2;
+  border-bottom-color: #304158 !important;
+}
+:root[data-host-theme='office'][data-host-color-scheme='dark'] .desktop-tab.active { color: #75a8ff; }
+:root[data-host-theme='office'][data-host-color-scheme='dark'] .desktop-welcome-action { background: #182538; }
+:root[data-host-theme='office'][data-host-color-scheme='dark'] #desktop-ai-chat-host .ai-chat-send-btn:not(.stop) {
+  background: linear-gradient(105deg, #4d8dff, #75a8ff);
+}
+:root[data-host-theme='office'][data-host-color-scheme='dark'] #desktop-ai-chat-host :is(.ai-chat-model-btn, .ai-chat-mode-current) { color: #aabbd2; }

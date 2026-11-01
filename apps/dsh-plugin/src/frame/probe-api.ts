@@ -3,6 +3,7 @@ import { operationFailure, operationSuccess, DEFAULT_LOCAL_HISTORY_SETTINGS } fr
 import type { HostToEditorMessage, TimelineResultMessage } from '@easyview/contracts';
 import type { EasyViewDesktopApi } from '@easyview/workbench-core/host';
 import type { DesktopWorkspaceState, DesktopTabSnapshot } from '@easyview/workbench-core/contracts';
+import type { DesktopThemeMode } from '@easyview/workbench-core/contracts';
 
 export function createProbeDesktopApi(): EasyViewDesktopApi {
   const subscriptions = () => ({ unsubscribe() {}, dispose() {} });
@@ -10,6 +11,24 @@ export function createProbeDesktopApi(): EasyViewDesktopApi {
   const notifyUnsupported = async () => { window.alert('此开发预览尚未接通该宿主操作。'); return unsupported(); };
   const editorListeners = new Set<(message: HostToEditorMessage) => void>();
   const timelineListeners = new Set<(message: TimelineResultMessage) => void>();
+  const themeQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  const themeListeners = new Set<(theme: DesktopThemeMode) => void>();
+  const currentTheme = (): DesktopThemeMode => themeQuery?.matches ? 'dark' : 'light';
+  const emitTheme = () => { const theme = currentTheme(); for (const listener of themeListeners) listener(theme); };
+  const subscribeTheme = (listener: (theme: DesktopThemeMode) => void) => {
+    themeListeners.add(listener);
+    if (themeListeners.size === 1 && themeQuery) {
+      if (typeof themeQuery.addEventListener === 'function') themeQuery.addEventListener('change', emitTheme);
+      else themeQuery.addListener(emitTheme);
+    }
+    return { unsubscribe() {
+      themeListeners.delete(listener);
+      if (!themeListeners.size && themeQuery) {
+        if (typeof themeQuery.removeEventListener === 'function') themeQuery.removeEventListener('change', emitTheme);
+        else themeQuery.removeListener(emitTheme);
+      }
+    } };
+  };
   let state: DesktopWorkspaceState = { rootPath: null, openTabs: [], activeTabId: null,
     expandedRelativePaths: [], explorerVisible: true, outlineVisible: true, explorerWidth: 280, outlineWidth: 280 };
   const tabs: DesktopTabSnapshot = { windowId: 'dsh-probe', groups: [{ id: 'group-1', tabs: [], activeTabId: null }],
@@ -25,8 +44,8 @@ export function createProbeDesktopApi(): EasyViewDesktopApi {
     document: { open: notifyUnsupported, save: unsupported, saveAs: unsupported, rename: unsupported, onChanged: subscriptions },
     window: { requestClose: notifyUnsupported, titleBarDoubleClick: unsupported, popupAppMenu: notifyUnsupported, setTitleBarOverlay: unsupported },
     external: { open: notifyUnsupported }, clipboard: { writeText: async text => { await navigator.clipboard.writeText(text); return operationSuccess(true); } },
-    app: { getTheme: async () => operationSuccess('light'), newWindow: notifyUnsupported, getZoomFactor: () => 1,
-      locale: 'zh-CN', openedFileAtLaunch: false, onThemeChanged: subscriptions, onRevealDocument: subscriptions },
+    app: { getTheme: async () => operationSuccess(currentTheme()), newWindow: notifyUnsupported, getZoomFactor: () => 1,
+      locale: 'zh-CN', openedFileAtLaunch: false, onThemeChanged: subscribeTheme, onRevealDocument: subscriptions },
     workspace: {
       openFolder: notifyUnsupported, openRecentFolder: notifyUnsupported, getRecentFolders: async () => operationSuccess([]), removeRecentFolder: unsupported,
       onRootChanged: subscriptions, getState: async () => operationSuccess(state), setState: async next => { state = next; return operationSuccess(state); },

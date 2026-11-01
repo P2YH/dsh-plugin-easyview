@@ -104,7 +104,7 @@ export class WelcomePage {
     const brand = element('div', 'desktop-welcome-brand');
     const logo = element('span', 'desktop-welcome-logo');
     logo.innerHTML = ICONS.logo;
-    const title = element('h1', 'desktop-welcome-title', 'EasyView_Md');
+    const title = element('h1', 'desktop-welcome-title', '文档工作台');
     brand.append(logo, title);
     const subtitle = element('p', 'desktop-welcome-subtitle', tDesktop('welcome.subtitle'));
 
