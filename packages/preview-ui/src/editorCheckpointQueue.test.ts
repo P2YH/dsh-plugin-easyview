@@ -9,6 +9,32 @@ function fixture() {
 }
 afterEach(() => vi.useRealTimers());
 describe('durable checkpoint queue', () => {
+  for (const background of [false, true]) it(`flush recaptures when Word input changes during serialization (background: ${background})`, async () => {
+    vi.useFakeTimers();
+    let release!: () => void, captures = 0;
+    const editor = new ByteEditorLifecycle({ documentId: 'document', format: 'docx', sourceDiskHash: 'base',
+      root: () => null, flushInput() {}, async restore() {},
+      async serialize() {
+        captures++;
+        if (captures === 1) await new Promise<void>(resolve => { release = resolve; });
+        return new Uint8Array([editor.snapshot().editorRevision]);
+      } });
+    const persisted: number[] = [];
+    const queue = new EditorCheckpointQueue(editor, async snapshot => {
+      persisted.push(snapshot.editorRevision); return { checkpointRevision: persisted.length };
+    }, { delayMs: 10, maxRetries: 0, status() {} });
+    editor.changed();
+    if (background) await vi.advanceTimersByTimeAsync(10);
+    const flush = queue.flush();
+    // Observe the rejection on the old implementation while controlling the capture.
+    void flush.catch(() => {});
+    await vi.advanceTimersByTimeAsync(0);
+    editor.changed(); release();
+    await flush;
+    expect(captures).toBe(2); expect(persisted).toEqual([2]);
+    expect(queue.confirmed()?.bytes).toEqual(new Uint8Array([2]));
+    queue.dispose(); editor.dispose();
+  });
   it('waits for an in-flight ACK before coalescing newer input', async () => {
     vi.useFakeTimers(); const editor = fixture(); const revisions: number[] = [];
     let acknowledge!: () => void;

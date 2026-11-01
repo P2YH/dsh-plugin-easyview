@@ -15,6 +15,7 @@ import { OperationJournal } from '../src/host/operation-journal.ts';
 import { FileCommands } from '../src/host/file-commands.ts';
 import { XlsxProposals } from '../src/host/xlsx-proposals.ts';
 import ExcelJS from 'exceljs';
+import JSZip from 'jszip';
 
 const runtime = path => import(pathToFileURL(resolve(runtimeRoot, path, 'lib/index.js')).href);
 
@@ -138,6 +139,50 @@ async function settled(ai, address) {
   }
   throw new Error('Controlled execution did not settle');
 }
+
+for (const mounted of [false, true]) for (const draft of [false, true]) test(`Chat reads Word body for both summary prompts (editor mounted: ${mounted}, draft: ${draft})`, async () => {
+  const f = await fixture();
+  const zip = new JSZip();
+  zip.file('word/document.xml', '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>项目总结 &amp; 下一步</w:t></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>本季度完成交付。</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>');
+  await writeFile(resolve(f.workspace, 'report.docx'), await zip.generateAsync({ type: 'nodebuffer' }));
+  const opened = await f.documents.open('test', 'report.docx');
+  const address = { ...f.address, documentId: opened.sessionId, generation: mounted ? randomUUID() : undefined };
+  const identity = await f.documents.draftIdentity(opened.sessionId);
+  const key = contentHash(Buffer.from(`${address.workbenchId}\0${identity.fileIdentity}`));
+  const generation = address.generation ?? randomUUID();
+  if (mounted || draft) f.store.begin(key, generation);
+  if (draft) {
+    zip.file('word/document.xml', '<x:document xmlns:x="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><x:body><x:p><x:r><x:t>项目总结 &amp; 下一步</x:t></x:r></x:p><x:p><x:del><x:r><x:delText>旧的错误结论</x:delText></x:r></x:del><x:r><x:t>本季度完成交付。未保存的最新进展。</x:t></x:r></x:p></x:body></x:document>');
+    await f.store.checkpoint({ key, generation, requestId: randomUUID(), editorRevision: 1, expectedCheckpointRevision: 0,
+      format: 'docx', sourceDiskHash: identity.diskHash, bytes: await zip.generateAsync({ type: 'nodebuffer' }) });
+  }
+  let readError;
+  f.sessions.onPrompt(async input => {
+    try {
+      const context = JSON.parse(await f.ai.tool('easyview_read_document', {}, {
+        agent: { id: input.sessionId }, callId: randomUUID(), signal: new AbortController().signal,
+      }));
+      assert.equal(context.path, 'report.docx');
+      assert.equal(context.source, draft ? 'recovery_checkpoint' : 'saved_document');
+      assert.equal(context.scope, 'document');
+      assert.equal(context.baseRevision, draft ? 1 : 0);
+      assert.match(context.content, /项目总结 & 下一步/);
+      assert.match(context.content, /本季度完成交付。/);
+      assert.equal(context.content.includes('未保存的最新进展。'), draft);
+      assert.doesNotMatch(context.content, /旧的错误结论/);
+    } catch (error) { readError = error; throw error; }
+  });
+  try {
+    for (const userMessage of ['总结当前页内容', '总结当前文档内容']) {
+      await f.ai.send(address, { requestId: randomUUID(), mode: 'chat', model: 'controlled / fixture', userMessage });
+      const state = await settled(f.ai, address);
+      assert.equal(readError, undefined);
+      assert.equal(state.messages.at(-1).error, undefined, state.messages.at(-1).error);
+    }
+    assert.equal(f.journal.list().length, 0);
+    assert.equal(contentHash(await readFile(resolve(f.workspace, 'report.docx'))), identity.diskHash);
+  } finally { await f.close(); }
+});
 
 test('Chat inspects an authorized saved XLSX before its editor generation exists, without exposing a write tool', async () => {
   const f = await fixture(); await f.ai.close();

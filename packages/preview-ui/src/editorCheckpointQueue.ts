@@ -37,9 +37,16 @@ export class EditorCheckpointQueue {
     this.flushing = true;
     if (this.timer) { clearTimeout(this.timer); this.timer = null; }
     try {
-      await this.running;
-      while (this.editor.snapshot().dirty && this.editor.snapshot().editorRevision > this.confirmedRevision) {
-        await this.start();
+      while (true) {
+        try {
+          await this.running;
+          if (!this.editor.snapshot().dirty || this.editor.snapshot().editorRevision <= this.confirmedRevision) return;
+          await this.start();
+        } catch (error) {
+          // Input can invalidate a background capture while Chat waits for its ACK.
+          // Recapture the current revision, as the background scheduler already does.
+          if (!(error instanceof Error) || error.message !== 'editor_revision_changed') throw error;
+        }
         this.abort.signal.throwIfAborted();
       }
     } finally { this.flushing = false; }

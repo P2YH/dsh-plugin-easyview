@@ -29,7 +29,7 @@ export function apply(ctx: PresetContext, config: { mode: 'chat' | 'agent' }) {
       : toolName === 'easyview_edit_workbook'
       ? 'Propose XLSX cell value/formula updates using the fingerprint from easyview_read_document. The original EasyView diff card waits for the user to Apply or Reject. Never claim success before the returned committed state. Dirty workbooks must be saved first; after a committed proposal, ask the user to start a new request for further edits.'
       : toolName === 'easyview_read_document'
-      ? 'Read the active authorized Markdown/text recovery checkpoint with baseRevision, or inspect the saved XLSX workbook with its fingerprint, sheets, headers and rows.'
+      ? 'Read the active authorized document: Word (DOCX) body text from its confirmed recovery checkpoint or saved original, Markdown/text recovery checkpoint with baseRevision, or saved XLSX workbook with fingerprint, sheets, headers and rows. Word scope is the whole active document, not a rendered physical page; do not claim a page-specific summary. Respect the truncated flag when present.'
       : 'Edit the active Markdown draft using one exact, unique expectedText anchor at baseRevision. An empty expectedText is allowed only when the entire document is empty. For continuation, include a unique suffix and append to it. Changes appear in the original editor with highlights and undo; this never saves the original file.',
     parameters: toolName === 'easyview_edit_workbook' ? { type: 'object', properties: {
       fingerprint: { type: 'string', minLength: 1 }, ops: { type: 'array', minItems: 1, maxItems: 1000, items: {

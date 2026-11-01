@@ -9,6 +9,7 @@ import type { DraftStore } from './draft-store';
 import type { FileCommands } from './file-commands';
 import type { XlsxProposals } from './xlsx-proposals';
 import { AI_PRESETS, AI_TOOLS, type AiAddress, type AiExecution, type AiTools, type DshSessions, type VisibleAiMessage } from '../shared/ai';
+import { readDocxContext } from './docx-context';
 
 type Mode = 'chat' | 'agent';
 interface SessionBinding { id: string; cursor: number }
@@ -194,6 +195,15 @@ export class DshAiAdapter {
     if (!documentId) throw new Error('Open an authorized document first');
     const identity = await this.documents.draftIdentity(documentId, execution.signal);
     if (name === 'easyview_read_document' && identity.format === 'xlsx' && this.xlsx) return JSON.stringify(await this.xlsx.inspect(job.address, execution.signal));
+    if (name === 'easyview_read_document' && identity.format === 'docx') {
+      const key = contentHash(Buffer.from(`${job.address.workbenchId}\0${identity.fileIdentity}`));
+      if (job.address.generation) this.drafts.assertGeneration(key, job.address.generation);
+      const original = await this.documents.read(documentId, execution.signal), record = this.drafts.load(key);
+      if (record && record.sourceDiskHash !== identity.diskHash) throw new Error('Original/draft baseline conflict');
+      const context = await readDocxContext(record ? await this.drafts.bytes(record) : original, execution.signal);
+      return JSON.stringify({ path: this.documents.reference(documentId).relativePath, format: 'docx', scope: 'document',
+        source: record ? 'recovery_checkpoint' : 'saved_document', baseRevision: record?.editorRevision ?? 0, ...context });
+    }
     if (!job.address.generation) throw new Error('The text editor has not finished mounting');
     if (!['markdown', 'text'].includes(identity.format ?? '')) throw new Error('This format’s AI context adapter is not available');
     const key = contentHash(Buffer.from(`${job.address.workbenchId}\0${identity.fileIdentity}`));

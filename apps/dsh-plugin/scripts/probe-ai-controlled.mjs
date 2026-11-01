@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
+import { Document, Packer, Paragraph } from 'docx';
 import { chromium } from '@playwright/test';
 import { Context, runtimeRoot } from '../tests/runtime.mjs';
 
@@ -18,6 +19,8 @@ const host = await import(pathToFileURL(resolve(installationRoot, 'lib/index.js'
 const evidenceName = process.env.DSH_EASYVIEW_PACKAGE_ROOT ? 'e05-package-controlled-ai' : 'e05-controlled-ai';
 const directory = await mkdtemp(resolve(tmpdir(), 'easyview-ai-ui-')), workspace = resolve(directory, 'workspace');
 await mkdir(workspace); await writeFile(resolve(workspace, 'note.md'), '# Original\n\nKeep this paragraph.');
+const originalWord = await Packer.toBuffer(new Document({ sections: [{ children: [new Paragraph('Word summary fixture'), new Paragraph('本季度完成交付。')] }] }));
+await writeFile(resolve(workspace, 'report.docx'), originalWord);
 const workbook = new ExcelJS.Workbook();
 const sheet = workbook.addWorksheet('Sheet1'); sheet.getCell('A1').value = 'Workbook original'; sheet.getCell('B2').value = { formula: '1+2', result: 3 };
 await workbook.xlsx.writeFile(resolve(workspace, 'book.xlsx'));
@@ -53,6 +56,17 @@ const dependencies = ctx.plugin(inner => {
       emit('turn/start', {}); emit('user/message', { source: { rpcId: input.requestId } });
       const exec = { agent: { id: input.sessionId }, callId: `call-${turn}`, signal: new AbortController().signal };
       const content = JSON.parse(await ctx.get('easyview').ai.tool('easyview_read_document', {}, exec).catch(error => { console.error('Controlled read failed:', error.stack); throw error; }));
+      if (content.format === 'docx') {
+        assert.match(content.content, /Word summary fixture/);
+        assert.match(content.content, /本季度完成交付。/);
+        assert.equal(content.scope, 'document');
+        if (input.content[0].text.includes('总结当前文档内容')) {
+          assert.match(content.content, /WORD_UNSAVED_SUMMARY/);
+          assert.equal(content.source, 'recovery_checkpoint');
+        }
+        emit('assistant/message', { message: { content: [{ type: 'text', text: `CONTROLLED_WORD_SUMMARY_${turn}` }] } });
+        emit('turn/end', { reason: { kind: 'completed' } }); return { accepted: true };
+      }
       if (content.sheets) {
         emit('tool/call', { step: 1, callId: exec.callId, name: 'easyview_edit_workbook', arguments: '{}' });
         const result = JSON.parse(await ctx.get('easyview').ai.tool('easyview_edit_workbook', {
@@ -165,11 +179,28 @@ try {
   assert.equal(await page.locator('#ai-chat-toggle').getAttribute('aria-pressed'), 'false', 'Manual close survives document activation');
   await page.locator('#ai-chat-toggle').click(); await page.locator('.ai-chat-office-edit.undone').waitFor();
   assert.equal(prompts.length, 3, 'Office projection hydration must not replay any model request');
+  await page.locator('[data-relative-path="report.docx"] .workspace-entry-name').click();
+  await page.locator('.preview-word-editor .layout-paragraph').filter({ hasText: 'Word summary fixture' }).first().waitFor();
+  const wordPanel = page.locator('.ai-chat-panel:not(.suspended):not(.hidden)');
+  await wordPanel.locator('.ai-chat-mode-current').click();
+  await wordPanel.locator('.ai-chat-mode-option').filter({ hasText: 'Chat' }).click();
+  for (const [index, prompt] of ['总结当前页内容', '总结当前文档内容'].entries()) {
+    if (index === 1) {
+      await page.locator('.preview-word-editor .layout-paragraph').filter({ hasText: 'Word summary fixture' }).first().click();
+      await page.keyboard.press('End'); await page.keyboard.type(' WORD_UNSAVED_SUMMARY');
+    }
+    await wordPanel.locator('.ai-chat-input').fill(prompt);
+    await wordPanel.locator('.ai-chat-input').press('Enter');
+    await wordPanel.getByText(`CONTROLLED_WORD_SUMMARY_${index + 4}`, { exact: true }).waitFor();
+  }
+  assert.equal(prompts.length, 5);
+  assert.deepEqual(await readFile(resolve(workspace, 'report.docx')), originalWord);
   assert.deepEqual(browserErrors, []); assert.deepEqual(errors, []);
   const evidence = { status: 'passed', kind: 'controlled-response UI integration; NOT real-model acceptance', browser: browser.version(),
     installationRoot, aiSidebarDefaultOpen: true, welcomeAiVisible: true, manualSidebarToggle: true,
     originalAiPanel: true, originalMarkdownEditor: true, localPatchDurableReceipt: true, originalUnchanged: true,
     batchUndo: true, reloadHydrationNoReprompt: true, originalToolFeedback: true,
+    docx: { currentTabSummary: true, documentSummary: true, bodyTextRead: true, latestUnsavedBodyRead: true, originalUnchanged: true },
     xlsx: { originalProposalCard: true, rejectDoesNotWrite: true, acceptWritesOnce: true, formulaRetained: true, originalUndoCard: true, exactUndoBytes: true,
       reloadHydrationNoReprompt: true, lazyHistoryAfterPreviewReady: true }, browserErrors, errors, workspace };
   await writeFile(resolve(root, `docs/evidence/${evidenceName}.json`), JSON.stringify(evidence, null, 2) + '\n');

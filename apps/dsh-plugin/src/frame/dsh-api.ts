@@ -69,6 +69,7 @@ export async function createDshDesktopApi(options: { openFolder?: () => Promise<
     async prepareContext(path) {
       const targetPath = (path || activePath()).replace(/^preview:/, ''), descriptor = descriptors.get(targetPath);
       if (descriptor && /\.xlsx$/i.test(targetPath)) await drafts.ready(descriptor.sessionId);
+      if (descriptor && /\.docx$/i.test(targetPath) && drafts.canEdit(descriptor.sessionId)) await drafts.ready(descriptor.sessionId);
     },
     filesChanged: () => { for (const listener of fileListeners) listener(null); },
     flush: async () => { await text.flush(); await drafts.flush(); },
