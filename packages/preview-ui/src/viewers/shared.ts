@@ -12,6 +12,7 @@ import {
   previewThemeCssVars,
   previewThemeTitle,
   previewThemeToViewerTheme,
+  readPreviewHostTheme,
   resolvePreviewThemeMode,
   useLiftPreviewThemeSurface,
   type PreviewThemeMode,
@@ -526,7 +527,7 @@ export function UniversalFilePreview({ descriptor, loadingLabel = tPreview('comm
   const [archiveWorkerUrl, setArchiveWorkerUrl] = React.useState<string | null>(null);
   const { pinnedOpen, togglePinned } = useToolbarPinned();
   const [themeMode, setThemeMode] = React.useState<PreviewThemeMode>(() => (
-    resolvePreviewThemeMode(themeStorage, descriptor.relativePath)
+    resolvePreviewThemeMode(themeStorage, descriptor.relativePath, readPreviewHostTheme())
   ));
   const appearance = appearanceFromThemeMode(themeMode);
   const needsPptxWorker = descriptor.route === 'powerpoint';
@@ -540,19 +541,18 @@ export function UniversalFilePreview({ descriptor, loadingLabel = tPreview('comm
   usePreviewSidebarResize(rootRef, !!Viewer && (descriptor.route === 'pdf' || descriptor.route === 'powerpoint' || descriptor.route === 'word' || extension(descriptor.fileName) === '.xmind'));
 
   React.useEffect(() => {
-    setThemeMode(resolvePreviewThemeMode(themeStorage, descriptor.relativePath));
+    setThemeMode(resolvePreviewThemeMode(themeStorage, descriptor.relativePath, readPreviewHostTheme()));
   }, [descriptor.relativePath, themeStorage]);
 
   React.useEffect(() => {
-    const refreshProductDefault = () => {
-      if (themeStorage.readFileTheme(descriptor.relativePath)) return;
-      setThemeMode(themeStorage.getProductTheme());
+    const refreshTheme = () => {
+      setThemeMode(resolvePreviewThemeMode(themeStorage, descriptor.relativePath, readPreviewHostTheme()));
     };
-    window.addEventListener('inlinemd:themeChanged', refreshProductDefault);
-    window.addEventListener('easyview:productThemeChanged', refreshProductDefault);
+    window.addEventListener('inlinemd:themeChanged', refreshTheme);
+    window.addEventListener('easyview:productThemeChanged', refreshTheme);
     return () => {
-      window.removeEventListener('inlinemd:themeChanged', refreshProductDefault);
-      window.removeEventListener('easyview:productThemeChanged', refreshProductDefault);
+      window.removeEventListener('inlinemd:themeChanged', refreshTheme);
+      window.removeEventListener('easyview:productThemeChanged', refreshTheme);
     };
   }, [descriptor.relativePath, themeStorage]);
 

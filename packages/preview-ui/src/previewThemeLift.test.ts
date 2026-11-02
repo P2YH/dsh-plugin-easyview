@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { resolvePreviewThemeLiftTargets } from './theme';
+import {
+  readPreviewHostTheme,
+  resolvePreviewThemeLiftTargets,
+  resolvePreviewThemeMode,
+} from './theme';
 
 function el(id?: string, className?: string): HTMLElement {
-  return { id: id || '', className: className || '' } as HTMLElement;
+  return { id: id || '', className: className || '', dataset: {} } as unknown as HTMLElement;
 }
 
 function fakeDoc(opts: { desktop?: boolean; previewRoot?: boolean; filePreviewRoot?: boolean }) {
@@ -46,5 +50,28 @@ describe('resolvePreviewThemeLiftTargets', () => {
     expect(targets).toContain(doc.documentElement);
     expect(targets).toContain(doc.body);
     expect(targets.some((node) => node.id === 'file-preview-root')).toBe(true);
+  });
+});
+
+describe('preview host theme', () => {
+  it('lets the Office host override a persisted file theme', () => {
+    const fileStorage = {
+      getProductTheme: () => 'light' as const,
+      readFileTheme: () => 'dark' as const,
+      writeFileTheme: () => undefined,
+    };
+    expect(resolvePreviewThemeMode(fileStorage, 'notes.md', 'light')).toBe('light');
+    expect(resolvePreviewThemeMode(fileStorage, 'notes.md')).toBe('dark');
+  });
+
+  it('reads only the supported Office host color schemes', () => {
+    const html = el('html');
+    html.dataset.hostTheme = 'office';
+    html.dataset.hostColorScheme = 'light';
+    expect(readPreviewHostTheme({ documentElement: html })).toBe('light');
+    html.dataset.hostColorScheme = 'dark';
+    expect(readPreviewHostTheme({ documentElement: html })).toBe('dark');
+    delete html.dataset.hostTheme;
+    expect(readPreviewHostTheme({ documentElement: html })).toBeNull();
   });
 });

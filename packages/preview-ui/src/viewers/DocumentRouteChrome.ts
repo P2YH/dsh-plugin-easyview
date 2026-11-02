@@ -5,6 +5,7 @@ import {
   cyclePreviewThemeMode,
   previewThemeCssVars,
   previewThemeTitle,
+  readPreviewHostTheme,
   resolvePreviewThemeMode,
   useLiftPreviewThemeSurface,
   type PreviewThemeMode,
@@ -59,23 +60,22 @@ export function useDocumentRouteTheme(relativePath: string): {
     [assets.themeStorage],
   );
   const [themeMode, setThemeMode] = React.useState<PreviewThemeMode>(() => (
-    resolvePreviewThemeMode(themeStorage, relativePath)
+    resolvePreviewThemeMode(themeStorage, relativePath, readPreviewHostTheme())
   ));
 
   React.useEffect(() => {
-    setThemeMode(resolvePreviewThemeMode(themeStorage, relativePath));
+    setThemeMode(resolvePreviewThemeMode(themeStorage, relativePath, readPreviewHostTheme()));
   }, [relativePath, themeStorage]);
 
   React.useEffect(() => {
-    const refreshProductDefault = () => {
-      if (themeStorage.readFileTheme(relativePath)) return;
-      setThemeMode(themeStorage.getProductTheme());
+    const refreshTheme = () => {
+      setThemeMode(resolvePreviewThemeMode(themeStorage, relativePath, readPreviewHostTheme()));
     };
-    window.addEventListener('inlinemd:themeChanged', refreshProductDefault);
-    window.addEventListener('easyview:productThemeChanged', refreshProductDefault);
+    window.addEventListener('inlinemd:themeChanged', refreshTheme);
+    window.addEventListener('easyview:productThemeChanged', refreshTheme);
     return () => {
-      window.removeEventListener('inlinemd:themeChanged', refreshProductDefault);
-      window.removeEventListener('easyview:productThemeChanged', refreshProductDefault);
+      window.removeEventListener('inlinemd:themeChanged', refreshTheme);
+      window.removeEventListener('easyview:productThemeChanged', refreshTheme);
     };
   }, [relativePath, themeStorage]);
 

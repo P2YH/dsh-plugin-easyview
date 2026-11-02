@@ -18,6 +18,20 @@ export interface PreviewThemeStorage {
   writeFileTheme(relativePath: string, mode: PreviewThemeMode): void;
 }
 
+/**
+ * Office embeds EasyView in the desktop document and exposes the desktop color
+ * scheme on the root element.  A host scheme is authoritative for that
+ * surface, while standalone EasyView continues to support per-file themes.
+ */
+export function readPreviewHostTheme(
+  doc: Pick<Document, 'documentElement'> = document,
+): PreviewThemeMode | null {
+  if (doc.documentElement?.dataset.hostTheme !== 'office') return null;
+  const scheme = doc.documentElement.dataset.hostColorScheme;
+  if (scheme === 'dark' || scheme === 'light') return scheme;
+  return null;
+}
+
 export function createLocalPreviewThemeStorage(
   storage: Pick<Storage, 'getItem' | 'setItem'> | null | undefined = typeof localStorage === 'undefined' ? null : localStorage,
   fallback: PreviewThemeMode = 'light',
@@ -32,7 +46,9 @@ export function createLocalPreviewThemeStorage(
 export function resolvePreviewThemeMode(
   storage: PreviewThemeStorage,
   relativePath: string,
+  hostTheme?: PreviewThemeMode | null,
 ): PreviewThemeMode {
+  if (hostTheme) return hostTheme;
   return storage.readFileTheme(relativePath) ?? storage.getProductTheme();
 }
 
